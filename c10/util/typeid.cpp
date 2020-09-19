@@ -20,36 +20,50 @@ C10_EXPORT void _ThrowRuntimeTypeLogicError(const string& msg) {
 
 } // namespace detail
 
+//
+// Specializations of TypeMetaData* TypeMeta::_typeMetaDataInstance<T>() -
+// these return singletons, effectively interning TypeMetaData instances.
+// TypeMeta objects are just handles to these interned pointers.
+//
+// First the instances corresponding to ScalarType types, then others
+// needed by the core - we use the user macro CAFFE_KNOWN_TYPE(T) for
+// the latter
+//
+
+// implementations of _typeMetaDataInstance<T> for ScalarType types T
+
+#define CAFFE2_SCALARTYPE_TYPE(T, name)                            \
+  template <>                                                                     \
+  EXPORT_IF_NOT_GCC                                                               \
+  const detail::TypeMetaData* TypeMeta::_typeMetaDataInstance<T>() noexcept {     \
+    static detail::TypeMetaData singleton =                                       \
+      detail::_makeScalarTypeMetaDataInstance<T>(ScalarType::name);               \
+    return &singleton;                                                            \
+  }
+AT_FORALL_SCALAR_TYPES_WITH_COMPLEX_AND_QINTS(CAFFE2_SCALARTYPE_TYPE)
+#undef CAFFE2_SCALARTYPE_TYPE
+
 template <>
-EXPORT_IF_NOT_GCC const detail::TypeMetaData* TypeMeta::_typeMetaDataInstance<
-    detail::_Uninitialized>() noexcept {
-  static constexpr detail::TypeMetaData singleton = detail::TypeMetaData(
-      0,
-      nullptr,
-      nullptr,
-      nullptr,
-      nullptr,
-      nullptr,
-      TypeIdentifier::uninitialized(),
-      "nullptr (uninitialized)");
+EXPORT_IF_NOT_GCC
+const detail::TypeMetaData* TypeMeta::_typeMetaDataInstance<detail::_Uninitialized>() noexcept {
+  static detail::TypeMetaData singleton{
+    0,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    TypeIdentifier::uninitialized(),
+    "nullptr (uninitialized)",
+    ScalarType::Undefined};
   return &singleton;
 }
 
-CAFFE_KNOWN_TYPE(uint8_t)
-CAFFE_KNOWN_TYPE(int8_t)
-CAFFE_KNOWN_TYPE(int16_t)
-CAFFE_KNOWN_TYPE(int)
-CAFFE_KNOWN_TYPE(int64_t)
-CAFFE_KNOWN_TYPE(at::Half)
-CAFFE_KNOWN_TYPE(float)
-CAFFE_KNOWN_TYPE(double)
-CAFFE_KNOWN_TYPE(c10::complex<c10::Half>)
-CAFFE_KNOWN_TYPE(c10::complex<float>)
-CAFFE_KNOWN_TYPE(c10::complex<double>)
-// 11 = undefined type id
-// 12 = Tensor (defined in tensor.cc)
+//
+// other predeclared C++ types
+//
+
 CAFFE_KNOWN_TYPE(std::string)
-CAFFE_KNOWN_TYPE(bool)
 CAFFE_KNOWN_TYPE(uint16_t)
 CAFFE_KNOWN_TYPE(char)
 CAFFE_KNOWN_TYPE(std::unique_ptr<std::mutex>)
@@ -79,14 +93,11 @@ using _guard_long_unique = std::conditional_t<
     _guard_long_unique_dummy<T>,
     T>;
 } // namespace detail
+
 CAFFE_KNOWN_TYPE(detail::_guard_long_unique<long>);
 CAFFE_KNOWN_TYPE(detail::_guard_long_unique<std::vector<long>>)
 
 CAFFE_KNOWN_TYPE(float*)
 CAFFE_KNOWN_TYPE(at::Half*)
-CAFFE_KNOWN_TYPE(c10::qint8)
-CAFFE_KNOWN_TYPE(c10::quint8)
-CAFFE_KNOWN_TYPE(c10::qint32)
-CAFFE_KNOWN_TYPE(at::BFloat16)
 
 } // namespace caffe2

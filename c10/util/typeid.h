@@ -21,16 +21,13 @@
 #include <c10/util/Backtrace.h>
 #include <c10/util/C++17.h>
 #include <c10/util/Exception.h>
-#include <c10/util/Half.h>
 #include <c10/util/IdWrapper.h>
 #include <c10/util/Type.h>
 #include <c10/util/TypeTraits.h>
 #include <c10/util/TypeIndex.h>
-#include <c10/util/qint32.h>
-#include <c10/util/qint8.h>
-#include <c10/util/quint8.h>
-#include <c10/util/BFloat16.h>
 #include <c10/util/flat_hash_map.h>
+
+#include <c10/core/ScalarType.h>
 
 /*
  * TypeIdentifier is a small type containing an id.
@@ -126,7 +123,8 @@ struct TypeMetaData final {
   using Delete = void(void*);
 
   TypeMetaData() = delete;
-  constexpr TypeMetaData(
+
+  TypeMetaData(
       size_t itemsize,
       New* newFn,
       PlacementNew* placementNew,
@@ -142,7 +140,28 @@ struct TypeMetaData final {
         placementDelete_(placementDelete),
         delete_(deleteFn),
         id_(id),
-        name_(name) {}
+        name_(name),
+        scalarTypeOpt_(c10::nullopt) {}
+
+  TypeMetaData(
+      size_t itemsize,
+      New* newFn,
+      PlacementNew* placementNew,
+      Copy* copy,
+      PlacementDelete* placementDelete,
+      Delete* deleteFn,
+      TypeIdentifier id,
+      c10::string_view name,
+      ScalarType scalarTypeOpt) noexcept
+      : itemsize_(itemsize),
+        new_(newFn),
+        placementNew_(placementNew),
+        copy_(copy),
+        placementDelete_(placementDelete),
+        delete_(deleteFn),
+        id_(id),
+        name_(name),
+        scalarTypeOpt_(scalarTypeOpt) {}
 
   size_t itemsize_;
   New* new_;
@@ -152,6 +171,7 @@ struct TypeMetaData final {
   Delete* delete_;
   TypeIdentifier id_;
   c10::string_view name_;
+  c10::optional<ScalarType> scalarTypeOpt_;
 };
 
 // Mechanism for throwing errors which can't be prevented at compile time
@@ -294,9 +314,9 @@ inline constexpr TypeMetaData::Delete* _PickDelete() noexcept {
 }
 
 template <class T>
-inline C10_TYPENAME_CONSTEXPR TypeMetaData _makeTypeMetaDataInstance() {
-  C10_HOST_CONSTEXPR_VAR auto typeId = TypeIdentifier::Get<T>();
-  C10_TYPENAME_CONSTEXPR auto typeName = c10::util::get_fully_qualified_type_name<T>();
+inline TypeMetaData _makeTypeMetaDataInstance() {
+  auto typeId = TypeIdentifier::Get<T>();
+  auto typeName = c10::util::get_fully_qualified_type_name<T>();
 
   return {sizeof(T),
           _PickNew<T>(),
@@ -306,6 +326,22 @@ inline C10_TYPENAME_CONSTEXPR TypeMetaData _makeTypeMetaDataInstance() {
           _PickDelete<T>(),
           typeId,
           typeName};
+}
+
+template <class T>
+inline TypeMetaData _makeScalarTypeMetaDataInstance(ScalarType scalarType) {
+  auto typeId = TypeIdentifier::Get<T>();
+  auto typeName = c10::util::get_fully_qualified_type_name<T>();
+
+  return {sizeof(T),
+          _PickNew<T>(),
+          _PickPlacementNew<T>(),
+          _PickCopy<T>(),
+          _PickPlacementDelete<T>(),
+          _PickDelete<T>(),
+          typeId,
+          typeName,
+          scalarType};
 }
 
 class _Uninitialized final {};
@@ -394,6 +430,13 @@ class C10_API TypeMeta final {
     return data_->name_;
   }
 
+  /**
+   * return the optional ScalarType enum value associated with this type.
+   */
+  inline c10::optional<ScalarType> scalarTypeOpt() noexcept {
+    return data_->scalarTypeOpt_;
+  }
+
   friend bool operator==(
       const TypeMeta& lhs,
       const TypeMeta& rhs) noexcept;
@@ -411,7 +454,7 @@ class C10_API TypeMeta final {
   }
 
   template <class T>
-  static C10_TYPENAME_CONSTEXPR c10::string_view TypeName() noexcept {
+  static c10::string_view TypeName() noexcept {
     return c10::util::get_fully_qualified_type_name<T>();
   }
 
@@ -445,6 +488,8 @@ class C10_API TypeMeta final {
  private:
   const detail::TypeMetaData* data_;
 
+  // each TypeMeta::_typeMetaDataInstance<T>() manages
+  // an interned TypeMetaData instance for type T
   template <class T>
   C10_API static const detail::TypeMetaData* _typeMetaDataInstance() noexcept;
 };
@@ -503,7 +548,7 @@ inline std::ostream& operator<<(
   template <>                                                      \
   EXPORT_IF_NOT_GCC const detail::TypeMetaData*                    \
   TypeMeta::_typeMetaDataInstance<T>() noexcept {                  \
-    static C10_TYPENAME_CONSTEXPR detail::TypeMetaData singleton = \
+    static detail::TypeMetaData singleton =                        \
         detail::_makeTypeMetaDataInstance<T>();                    \
     return &singleton;                                             \
   }
