@@ -93,7 +93,8 @@ std::tuple<tensorpipe::Message, TensorpipeWriteBuffers> tensorpipeSerialize(
     // Enforce memory copy if tensor is created from torch::from_blob, means
     // that the tensor doesn't own the memory.
     std::string metadata =
-        deviceIndices.empty() ? "" : std::to_string(deviceIndices[i]);
+        deviceIndices.empty() || deviceIndices[i] == -1
+        ? "" : std::to_string(deviceIndices[i]);
 
     if (!tensorData.storageHasDeleter()) {
       std::vector<char> storageData(
