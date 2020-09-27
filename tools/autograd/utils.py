@@ -1,6 +1,8 @@
 import re
 import os
-import yaml
+# yaml is used below, and YamlLoader used outside of this module, which
+# is why it is needed and used.
+import yaml  # noqa: F401
 from .nested_dict import nested_dict
 
 
@@ -74,6 +76,12 @@ def is_tensor_method(declaration):
 def is_out_variant(decl):
     return decl['name'].endswith('_out')
 
+def op_name_with_overload(decl):
+    name = decl['operator_name_with_overload'] \
+        if not is_out_variant(decl) else \
+        decl['operator_name_with_overload'][:-len('_out')]
+    return name
+
 def op_name_without_overload(decl):
     name = decl['name'] if not is_out_variant(decl) else decl['name'][:-4]
     return 'aten::{}'.format(name)
@@ -85,6 +93,6 @@ def load_op_list_and_strip_overload(op_list, op_list_path):
         op_list = []
     if op_list_path is not None:
         with open(op_list_path, 'r') as f:
-            op_list += yaml.load(f, Loader=YamlLoader)
+            op_list += f.read().split()
     # strip out the overload part
     return {opname.split('.', 1)[0] for opname in op_list}
