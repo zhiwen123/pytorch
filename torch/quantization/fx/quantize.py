@@ -117,7 +117,7 @@ def graph_module_from_producer_nodes(root, producer_nodes):
         return map_arg(a, lambda node: env[node])
     for producer_node in producer_nodes:
         env[producer_node] = graph.node_copy(producer_node, load_arg)
-    graph.output(load_arg(producer_nodes[-1]))
+    graph.set_output(load_arg(producer_nodes[-1]))
     graph_module = GraphModule(root, graph)
     return graph_module
 
@@ -489,16 +489,15 @@ class Quantizer:
                     setattr(model, observer_name, self.activation_post_process_map[node.name])
                     env[node.name] = observed_graph.create_node('call_module', observer_name, (load_arg(node),), {})
                     observed_node_names_set.add(node.name)
-
-        observed_graph.output(load_arg(model.graph.result))
+        observed_graph.set_output(load_arg(model.graph.output))
         model = GraphModule(model, observed_graph)
         self.save_state(model)
         if is_standalone_module:
-            assert isinstance(model.graph.result, Node), \
+            assert isinstance(model.graph.output, Node), \
                 'standalone module returning dict is not yet supported'
             # indicator for whether output is observed or not.
             # This used for correctly quantize standalone modules
-            output_is_observed = model.graph.result.name in observed_node_names_set
+            output_is_observed = model.graph.output.name in observed_node_names_set
             model._standalone_module_observed_input_idxs = standalone_module_observed_input_idxs
             model._output_is_observed = output_is_observed
         return model
@@ -726,10 +725,10 @@ class Quantizer:
 
         if is_standalone_module:
             # result are kepted quantized in the quantized standalone module
-            graph_output = map_arg(model.graph.result, load_x)
+            graph_output = map_arg(model.graph.output, load_x)
         else:
-            graph_output = map_arg(model.graph.result, load_non_quantized)
-        self.quantized_graph.output(graph_output)
+            graph_output = map_arg(model.graph.output, load_non_quantized)
+        self.quantized_graph.set_output(graph_output)
 
         # remove activation post process
         act_post_process_removed_graph = Graph()
@@ -746,7 +745,7 @@ class Quantizer:
                 env[node.name] = env[node.args[0].name]
             else:
                 env[node.name] = act_post_process_removed_graph.node_copy(node, load_arg)
-        act_post_process_removed_graph.output(map_arg(self.quantized_graph.result, load_arg))
+        act_post_process_removed_graph.set_output(map_arg(self.quantized_graph.output, load_arg))
 
         module_dict = dict(model.named_modules())
         to_be_removed = []
@@ -806,7 +805,7 @@ class Quantizer:
             else:
                 # copy other nodes
                 env[node.name] = folded_graph.node_copy(node, load_arg)
-        folded_graph.output(load_arg(quantized_graph.result))
+        folded_graph.set_output(load_arg(quantized_graph.output))
         quantized = GraphModule(quantized_root, folded_graph)
         return quantized
 
