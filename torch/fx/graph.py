@@ -67,6 +67,7 @@ def map_arg(a: Argument, fn: Callable[[Node], Argument]) -> Argument:
 
 class Graph:
     def __init__(self):
+        self._inputs : List[Node] = []
         self._nodes : List[Node] = []
         self._used_names : Dict[str, int] = {}  # base name -> number
 
@@ -79,6 +80,9 @@ class Graph:
         Append all nodes from graph `g` to this graph
         """
         val_map : Dict[Node, Node] = {}
+        for inp in g._inputs:
+            assert isinstance(inp.target, str)
+            val_map[inp] = self.placeholder(inp.target)
         for node in g._nodes:
             val_map[node] = self.node_copy(node, lambda n : val_map[n])
 
@@ -92,7 +96,10 @@ class Graph:
                     args: Optional[Tuple[Argument, ...]] = None,
                     kwargs: Optional[Dict[str, Argument]] = None,
                     name: Optional[str] = None) -> Node:
-        assert op in ('call_function', 'call_method', 'get_attr', 'call_module', 'placeholder')
+        if op == 'placeholder':
+            raise RuntimeError('Placeholders are no longer nodes in the graph but rather handled '
+                               'separately. Please add a placeholder using Graph.placeholder()')
+        assert op in ('call_function', 'call_method', 'get_attr', 'call_module')
         args = () if args is None else args
         kwargs = {} if kwargs is None else kwargs
         self._mark_uses(args)
@@ -102,10 +109,17 @@ class Graph:
         self._nodes.append(n)
         return n
 
-    # sugar for above when you know the op
     def placeholder(self, name: str) -> Node:
-        return self.create_node('placeholder', name)
+        sanitized_name = self._name(name)
+        n = Node(graph=self, name=sanitized_name, op='placeholder', target=name, args=(), kwargs={})
+        self._inputs.append(n)
+        return n
 
+    @property
+    def inputs(self):
+        return tuple(self._inputs)
+
+    # sugar for create_node when you know the op
     def get_attr(self, name: str) -> Node:
         return self.create_node('get_attr', name)
 
@@ -197,15 +211,14 @@ class Graph:
     def python_code(self, root_module: str) -> Tuple[str, str, List[str]]:
         free_vars: List[str] = []
         body: List[str] = []
+        for inp in self._inputs:
+            assert isinstance(inp.target, str)
+            free_vars.append(inp.target)
+            raw_name = inp.target.replace('*', '')
+            if raw_name != inp.name:
+                body.append(f'{inp.name} = {raw_name}\n')
         for node in self._nodes:
-            if node.op == 'placeholder':
-                assert isinstance(node.target, str)
-                free_vars.append(node.target)
-                raw_name = node.target.replace('*', '')
-                if raw_name != node.name:
-                    body.append(f'{node.name} = {raw_name}\n')
-                continue
-            elif node.op == 'call_method':
+            if node.op == 'call_method':
                 assert isinstance(node.target, str)
                 body.append(
                     f'{node.name} = {_format_target(repr(node.args[0]), node.target)}'
@@ -272,7 +285,8 @@ class Graph:
                 return f'%{n.name} : [uses={n.uses}] = {n.op}[target={n.target}](' \
                        f'args = {format_arg(n.args)}, kwargs = {format_arg(n.kwargs)})'
 
-
+        for inp in self._inputs:
+            format_node(inp)
         node_strs = [format_node(node) for node in self._nodes]
         param_str = ', '.join(placeholder_names)
         s = f'graph({param_str}):'
@@ -305,6 +319,8 @@ class Graph:
 
         seen_names : Set[str] = set()
         seen_values : Set[Node] = set()
+        for inp in self._inputs:
+            seen_values.add(inp)
         for node in self._nodes:
             if node.op not in ['placeholder', 'call_method', 'call_module', 'call_function', 'get_attr']:
                 raise RuntimeError(f'Node {node} had unknown opcode {node.op}!')
