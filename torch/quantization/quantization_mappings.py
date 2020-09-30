@@ -10,6 +10,10 @@ import torch.nn.quantized.dynamic as nnqd
 import torch.nn.qat as nnqat
 
 from .stubs import QuantStub, DeQuantStub
+from .fake_quantize import (
+    default_affine_fixed_qparam_fake_quant,
+    default_symmetric_fixed_qparam_fake_quant,
+)
 
 # Map for swapping float module to quantized ones
 STATIC_QUANT_MODULE_MAPPINGS = {
@@ -86,6 +90,14 @@ FLOAT_TO_QUANTIZED_OPERATOR_MAPPINGS = {
     F.hardswish: torch._ops.ops.quantized.hardswish,
     F.instance_norm: torch._ops.ops.quantized.instance_norm,
     F.layer_norm: torch._ops.ops.quantized.layer_norm,
+}
+
+# mapping from module to output activation post process class
+# TODO: add registration function later if needed
+MODULE_TO_ACT_POST_PROCESS = {
+    nn.Hardsigmoid: default_affine_fixed_qparam_fake_quant,
+    nn.Sigmoid: default_affine_fixed_qparam_fake_quant,
+    nn.Tanh: default_symmetric_fixed_qparam_fake_quant,
 }
 
 def register_static_quant_module_mapping(
@@ -187,3 +199,15 @@ def get_quantized_operator(float_op):
     assert quantized_op is not None, \
         'Operator {} does not have corresponding quantized op'.format(float_op)
     return quantized_op
+
+def get_special_act_post_process(module_cls):
+    r""" Get the special activation post process for `module`, this has
+    higher priority than the activation post process in `qconfig`
+    e.g.
+    input: torch.nn.Sigmoid
+    output: default_affine_fixed_qparam_fake_quant
+    """
+    return MODULE_TO_ACT_POST_PROCESS.get(module_cls, None)
+
+def has_special_act_post_process(module_cls):
+    return module_cls in MODULE_TO_ACT_POST_PROCESS
