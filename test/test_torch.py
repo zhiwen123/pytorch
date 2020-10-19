@@ -7348,7 +7348,7 @@ class TestTorchDeviceType(TestCase):
                 )
 
             # test matrix product based on qr decomposition
-            x = x.unsqueeze(0) if x.dim() <= 2 else x # to eliminate 0-dim tensors
+            x = x.unsqueeze(0) if x.dim() <= 2 else x  # to eliminate 0-dim tensors
             q, r = x.qr()
             self.assertEqual(x.det(), q.det() * r.det())
 
