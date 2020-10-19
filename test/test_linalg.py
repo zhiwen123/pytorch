@@ -168,7 +168,7 @@ class TestLinalg(TestCase):
             torch.randn((4, 2, 26, 26), device=device, dtype=dtype))
 
 
-        ops = (torch.det, lambda x: x.det(),
+        ops = (torch.det, torch.Tensor.det,
                torch.linalg.det)
         for t in tensors:
             expected = np.linalg.det(t.cpu().numpy())
