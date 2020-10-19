@@ -7326,8 +7326,6 @@ class TestTorchDeviceType(TestCase):
         with self.assertRaisesRegex(RuntimeError, "chain_matmul: Expected one or more matrices"):
             torch.chain_matmul()
 
-    # no CUDA LU yet, used for torch.det())
-    @onlyCPU
     @skipCPUIfNoLapack
     @dtypes(torch.complex64, torch.complex128)
     def test_det_complex_only(self, device, dtype):
@@ -7338,17 +7336,9 @@ class TestTorchDeviceType(TestCase):
 
         def run_test(*sizes):
             x = torch.rand(*sizes, device=device, dtype=dtype)
-            x = x.view(-1, sizes[-2], sizes[-1])
 
             if TEST_NUMPY:
-                x_detached = x.detach()
-                for i in range(x.size(0)):
-                    det_numpy = np.linalg.det(x_detached.select(0, i).cpu().numpy())
-                    det_pytorch = x.select(0, i).det()
-                    self.assertEqual(
-                        det_pytorch, det_pytorch.new_tensor(det_numpy),
-                        atol=(1e-7 if dtype == torch.complex128 else 1e-6), rtol=0
-                    )
+                self.compare_with_numpy(torch.det, np.linalg.det, x)
 
             # test triangular case
             for tr in [x.triu(), x.tril()]:
@@ -7358,6 +7348,7 @@ class TestTorchDeviceType(TestCase):
                 )
 
             # test matrix product based on qr decomposition
+            x = x.unsqueeze(0) if x.dim() <= 2 else x # to eliminate 0-dim tensors
             q, r = x.qr()
             self.assertEqual(x.det(), q.det() * r.det())
 
