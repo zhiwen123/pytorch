@@ -159,7 +159,7 @@ class TestLinalg(TestCase):
     @skipCUDAIfNoMagma
     @skipCPUIfNoLapack
     @unittest.skipIf(not TEST_NUMPY, "NumPy not found")
-    @dtypes(torch.double)
+    @dtypes(torch.double, torch.cdouble)
     def test_det(self, device, dtype):
         tensors = (
             torch.randn((2, 2), device=device, dtype=dtype),
@@ -168,7 +168,7 @@ class TestLinalg(TestCase):
             torch.randn((4, 2, 26, 26), device=device, dtype=dtype))
 
 
-        ops = (torch.det, torch.Tensor.det,
+        ops = (torch.det, lambda x: x.det(),
                torch.linalg.det)
         for t in tensors:
             expected = np.linalg.det(t.cpu().numpy())
