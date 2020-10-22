@@ -3219,7 +3219,7 @@ class DistributedTest:
                     self.assertEqual(tensor, t)
 
         @require_backend({"gloo", "nccl"})
-        @require_backends_available({"gloo", "nccl"})
+        # @require_backends_available({"gloo", "nccl"})
         @skip_if_lt_x_gpu(2)
         @skip_if_rocm
         def test_ddp_sync_params_and_buffers(self):
@@ -3261,7 +3261,7 @@ class DistributedTest:
                     self.assertEqual(t, expected)
 
         @require_backend({"gloo", "nccl"})
-        @require_backends_available({"gloo", "nccl"})
+        # @require_backends_available({"gloo", "nccl"})
         @skip_if_lt_x_gpu(2)
         @skip_if_rocm
         def test_ddp_grad_div_uneven_inputs(self):
@@ -3315,7 +3315,7 @@ class DistributedTest:
                     torch.cuda.synchronize(device=self.rank)
 
         @require_backend({"gloo", "nccl"})
-        @require_backends_available({"gloo", "nccl"})
+        # @require_backends_available({"gloo", "nccl"})
         @skip_if_lt_x_gpu(2)
         @skip_if_rocm
         def test_ddp_join_model_equivalence(self):
@@ -3419,10 +3419,11 @@ class DistributedTest:
             dist.barrier()
 
         @require_backend({"gloo", "nccl"})
-        @require_backends_available({"gloo", "nccl"})
+        # @require_backends_available({"gloo", "nccl"})
         @skip_if_lt_x_gpu(2)
         @skip_if_rocm
         def test_ddp_uneven_inputs(self):
+            raise ValueError("Intentional failure")
             class DDPUnevenTestInput(NamedTuple):
                 name: str
                 model: nn.Module
@@ -3577,7 +3578,7 @@ class DistributedTest:
                 )
 
         @require_backend({"gloo", "nccl"})
-        @require_backends_available({"gloo", "nccl"})
+        # @require_backends_available({"gloo", "nccl"})
         @skip_if_lt_x_gpu(2)
         @skip_if_rocm
         def test_ddp_uneven_input_join_disable(self):
@@ -3611,7 +3612,7 @@ class DistributedTest:
             self.validate_net_equivalence(net)
 
         @require_backend({"gloo", "nccl"})
-        @require_backends_available({"gloo", "nccl"})
+        # @require_backends_available({"gloo", "nccl"})
         @skip_if_lt_x_gpu(2)
         @skip_if_rocm
         def test_ddp_uneven_input_exception(self):
@@ -3639,7 +3640,7 @@ class DistributedTest:
                     loss.backward()
 
         @require_backend({"gloo", "nccl"})
-        @require_backends_available({"gloo", "nccl"})
+        # @require_backends_available({"gloo", "nccl"})
         @skip_if_lt_x_gpu(4)
         @skip_if_rocm
         def test_ddp_uneven_inputs_replicated_error(self):
@@ -3682,7 +3683,7 @@ class DistributedTest:
             self.assertEqual(objects, collectives_object_test_list)
 
         @require_backend({"gloo", "nccl"})
-        @require_backends_available({"gloo", "nccl"})
+        # @require_backends_available({"gloo", "nccl"})
         @skip_if_lt_x_gpu(2)
         @skip_if_rocm
         def test_ddp_ignore_params_arg(self):
@@ -3770,7 +3771,7 @@ class DistributedTest:
                 torch.cuda.synchronize(device=self.rank)
 
         @require_backend({"gloo", "nccl"})
-        @require_backends_available({"gloo", "nccl"})
+        # @require_backends_available({"gloo", "nccl"})
         @skip_if_lt_x_gpu(2)
         @skip_if_rocm
         def test_ddp_unused_params_rebuild_buckets_exception(self):
@@ -3801,7 +3802,7 @@ class DistributedTest:
                     ddp(inp).sum().backward()
 
         @require_backend({"gloo", "nccl"})
-        @require_backends_available({"gloo", "nccl"})
+        # @require_backends_available({"gloo", "nccl"})
         @skip_if_lt_x_gpu(2)
         @skip_if_rocm
         def test_ddp_device(self):
