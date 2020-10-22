@@ -175,7 +175,6 @@ class TestLinalg(TestCase):
             for op in ops:
                 actual = op(t)
                 self.assertEqual(actual, expected)
-
                 self.compare_with_numpy(op, np.linalg.det, t)
 
         # NOTE: det requires a 2D+ tensor
