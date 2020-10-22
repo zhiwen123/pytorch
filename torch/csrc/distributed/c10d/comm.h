@@ -1,6 +1,6 @@
 #pragma once
 
-#include <memory>
+#include <functional>
 
 #include <ATen/ATen.h>
 #include <c10d/ProcessGroup.hpp>
@@ -47,7 +47,7 @@ class TORCH_API CommHookInterface {
   // Once the tensors in the bucket are ready, kicks off the hook asynchronously
   // and returns a future that holds the communication results.
   virtual c10::intrusive_ptr<torch::jit::Future> runHook(
-      const GradBucket& bucket) = 0;
+      GradBucket& bucket) = 0;
 
   // Returns the resulting tensors once the communication hook result is ready.
   // The resulting tensors will then be copied to the grads of individual
@@ -68,16 +68,39 @@ class TORCH_PYTHON_API PythonCommHook : public CommHookInterface {
 
   ~PythonCommHook() override;
 
-  c10::intrusive_ptr<torch::jit::Future> runHook(
-      const GradBucket& bucket) override;
+  c10::intrusive_ptr<torch::jit::Future> runHook(GradBucket& bucket) override;
 
   std::vector<at::Tensor> parseHookResult(const c10::IValue& result) override;
 
  private:
   // Only needed for stateful communication.
   py::object state_;
-  // Indicates an asynchrounous communication of gradients.
   py::object hook_;
+};
+
+class TORCH_API CppCommHook : public CommHookInterface {
+ public:
+  explicit CppCommHook(
+      std::function<c10::intrusive_ptr<
+          torch::jit::Future>(ProcessGroup*, GradBucket&)>& hook,
+      ProcessGroup* process_group = nullptr)
+      : process_group_(process_group), hook_(std::move(hook)) {}
+
+  c10::intrusive_ptr<torch::jit::Future> runHook(GradBucket& bucket) override {
+    return hook_(process_group_, bucket);
+  }
+
+  std::vector<at::Tensor> parseHookResult(const c10::IValue& result) override;
+
+ private:
+  // This can be a more generic state if needed.
+  // Note that std::optional<ProcessGroup> cannot be used, since ProcessGroup is
+  // an abstract class.
+  ProcessGroup* process_group_; // Not owned.
+  std::function<c10::intrusive_ptr<torch::jit::Future>(
+      ProcessGroup* process_group,
+      GradBucket&)>
+      hook_;
 };
 
 } // namespace c10d

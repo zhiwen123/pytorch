@@ -97,7 +97,7 @@ PythonCommHook::~PythonCommHook() {
 }
 
 c10::intrusive_ptr<torch::jit::Future> PythonCommHook::runHook(
-    const GradBucket& bucket) {
+    GradBucket& bucket) {
   py::gil_scoped_acquire acquire;
 
   py::object py_fut = hook_(state_, bucket);
@@ -130,6 +130,18 @@ std::vector<at::Tensor> PythonCommHook::parseHookResult(
         obj, c10::ListType::create(c10::TensorType::get()));
 
     return value.toTensorVector();
+  }
+
+  return result.toTensorVector();
+}
+
+std::vector<at::Tensor> CppCommHook::parseHookResult(const c10::IValue& result) {
+  TORCH_INTERNAL_ASSERT(
+      result.isTensor() || result.isTensorList(),
+      "expected the hook result is either a Tensor or a TensorList");
+
+  if (result.isTensor()) {
+    return {result.toTensor()};
   }
 
   return result.toTensorVector();
