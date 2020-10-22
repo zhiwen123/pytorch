@@ -176,6 +176,8 @@ class TestLinalg(TestCase):
                 actual = op(t)
                 self.assertEqual(actual, expected)
 
+                self.compare_with_numpy(op, np.linalg.det, t)
+
         # NOTE: det requires a 2D+ tensor
         t = torch.randn(1, device=device, dtype=dtype)
         with self.assertRaises(RuntimeError):

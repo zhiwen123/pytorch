@@ -7331,46 +7331,6 @@ class TestTorchDeviceType(TestCase):
         with self.assertRaisesRegex(RuntimeError, "chain_matmul: Expected one or more matrices"):
             torch.chain_matmul()
 
-    @skipCPUIfNoLapack
-    @dtypes(torch.complex64, torch.complex128)
-    def test_det_complex_only(self, device, dtype):
-        scalar_dtype = {
-            torch.complex64: torch.float32,
-            torch.complex128: torch.float64
-        }
-
-        def run_test(*sizes):
-            x = torch.rand(*sizes, device=device, dtype=dtype)
-
-            if TEST_NUMPY:
-                self.compare_with_numpy(torch.det, np.linalg.det, x)
-
-            # test triangular case
-            for tr in [x.triu(), x.tril()]:
-                self.assertEqual(
-                    tr.diagonal(dim1=-2, dim2=-1).prod(-1),
-                    tr.det()
-                )
-
-            # test matrix product based on qr decomposition
-            x = x.unsqueeze(0) if x.dim() <= 2 else x  # to eliminate 0-dim tensors
-            q, r = x.qr()
-            self.assertEqual(x.det(), q.det() * r.det())
-
-            # test whether |det(q)| == 1
-            self.assertEqual(
-                q.det().abs(),
-                torch.ones(*x.shape[:-2], device=device, dtype=scalar_dtype[dtype])
-            )
-
-        run_test(3, 3)
-        run_test(3, 3, 3)
-        run_test(3, 3, 3, 3)
-
-        run_test(5, 5)
-        run_test(5, 5, 5)
-        run_test(5, 5, 5, 5)
-
     @slowTest
     @skipCUDAIfNoMagma
     @skipCPUIfNoLapack
