@@ -17228,6 +17228,122 @@ scipy_lobpcg  | {:10.2e}  | {:10.2e}  | {:6} | N/A
 
         self.compare_with_numpy(torch.reciprocal, np.reciprocal, vals, device, dtype)
 
+    # Use double copysign to verify the correctnes of 0.0 and -0.0,
+    # since self.assertEqual(0.0 == -0.0)
+    def test_copysign_bool(self, device):
+        # Result is promoted to float
+        # Only 0 and 1
+        x = torch.tensor([0, 0, 1, 1], device=device, dtype=torch.bool)
+        y = torch.tensor([0, 1, 0, 1], device=device, dtype=torch.bool)
+        expected = torch.tensor([0, 0, 1, 1], device=device, dtype=torch.float)
+        self.assertEqual(torch.copysign(torch.tensor(1.0), torch.copysign(x, y)),
+                         torch.copysign(torch.tensor(1.0), expected))
+
+    @dtypes(torch.half, torch.float, torch.double)
+    def test_copysign_floating(self, device, dtype):
+        # Scalar
+        x = torch.tensor([-1.0, 0.0, -0.0, 1.0], dtype=dtype)
+        y = torch.tensor(-1.0)
+        expected = torch.tensor([-1.0, -0.0, -0.0, -1.0], dtype=dtype)
+        self.assertEqual(torch.copysign(torch.tensor(1.0), torch.copysign(x, y)),
+                         torch.copysign(torch.tensor(1.0), expected))
+
+        x = torch.tensor([-1.0, 0.0, -0.0, 1.0], dtype=dtype)
+        y = torch.tensor(0.0)
+        expected = torch.tensor([1.0, 0.0, 0.0, 1.0], dtype=dtype)
+        self.assertEqual(torch.copysign(torch.tensor(1.0), torch.copysign(x, y)),
+                         torch.copysign(torch.tensor(1.0), expected))
+
+        x = torch.tensor([-1.0, 0.0, -0.0, 1.0], dtype=dtype)
+        y = torch.tensor(-0.0)
+        expected = torch.tensor([-1.0, -0.0, -0.0, -1.0], dtype=dtype)
+        self.assertEqual(torch.copysign(torch.tensor(1.0), torch.copysign(x, y)),
+                         torch.copysign(torch.tensor(1.0), expected))
+
+        x = torch.tensor(-1.0)
+        y = torch.tensor([-1.0, 0.0, -0.0, 1.0], dtype=dtype)
+        expected = torch.tensor([-1.0, 1.0, -1.0, 1.0], dtype=dtype)
+        self.assertEqual(torch.copysign(torch.tensor(1.0), torch.copysign(x, y)),
+                         torch.copysign(torch.tensor(1.0), expected))
+
+        # Constant
+        x = torch.tensor([-1.0, 0.0, -0.0, 1.0], dtype=dtype)
+        expected = torch.tensor([-1.0, -0.0, -0.0, -1.0], dtype=dtype)
+        self.assertEqual(torch.copysign(torch.tensor(1.0), torch.copysign(x, -1.0)),
+                         torch.copysign(torch.tensor(1.0), expected))
+
+        x = torch.tensor([-1.0, 0.0, -0.0, 1.0], dtype=dtype)
+        expected = torch.tensor([-1.0, -0.0, -0.0, -1.0], dtype=dtype)
+        self.assertEqual(torch.copysign(torch.tensor(1.0), torch.copysign(x, -0.0)),
+                         torch.copysign(torch.tensor(1.0), expected))
+
+        x = torch.tensor([-1.0, 0.0, -0.0, 1.0], dtype=dtype)
+        expected = torch.tensor([1.0, 0.0, 0.0, 1.0], dtype=dtype)
+        self.assertEqual(torch.copysign(torch.tensor(1.0), torch.copysign(x, 0.0)),
+                         torch.copysign(torch.tensor(1.0), expected))
+
+        # Normal
+        expected = torch.tensor([[1.0, 0.0, 0.0, 1.0] * 2, [-1.0, -0.0, -0.0, -1.0] * 2], dtype=dtype).reshape(-1)
+        x = torch.tensor([-1.0, -0.0, 0.0, 1.0] * 4, dtype=dtype)
+        y = torch.tensor([[0.0] * 4, [1.0] * 4, [-0.0] * 4, [-1.0] * 4], dtype=dtype).reshape(-1)
+        self.assertEqual(torch.copysign(torch.tensor(1.0), torch.copysign(x, y)),
+                         torch.copysign(torch.tensor(1.0), expected))
+
+    @dtypes(torch.int8, torch.short, torch.int, torch.long)
+    def test_copysign_integral(self, device, dtype):
+        # integer -0 doesn't exist
+        # Result is promoted to float
+        x = torch.tensor([-1, 0, 1], dtype=dtype)
+        y = torch.tensor(-1)
+        expected = torch.tensor([-1.0, -0.0, -1.0], dtype=torch.float)
+        self.assertEqual(torch.copysign(torch.tensor(1.0), torch.copysign(x, y)),
+                         torch.copysign(torch.tensor(1.0), expected))
+
+        x = torch.tensor([-1, 0, 1], dtype=dtype)
+        y = torch.tensor(1)
+        expected = torch.tensor([1.0, 0.0, 1.0], dtype=torch.float)
+        self.assertEqual(torch.copysign(torch.tensor(1.0), torch.copysign(x, y)),
+                         torch.copysign(torch.tensor(1.0), expected))
+
+    def _test_copysign_numpy(self, a, b):
+        torch_result = torch.copysign(a, b)
+        expected = torch.from_numpy(np.copysign(a.cpu().numpy(), b.cpu().numpy()))
+
+        # To handle inconsistencies in our type promotion and numpy's type promotion
+        promoted_type = torch.promote_types(torch_result.dtype, expected.dtype)
+        torch_result = torch_result.to(promoted_type)
+        expected = expected.to(promoted_type)
+
+        self.assertEqual(torch_result, expected)
+
+    def _create_rand_tensor(self, size, dtype, device):
+        if dtype == torch.bool:
+            return torch.randint(high=2, size=size, dtype=dtype, device=device)
+        elif dtype in [torch.int8, torch.short, torch.int, torch.long]:
+            return torch.randint(high=10, size=size, dtype=dtype, device=device)
+        else:
+            return torch.randn(size, dtype=dtype, device=device)
+
+    @unittest.skipIf(not TEST_NUMPY, "NumPy not found")
+    def test_copysign_numpy(self, device):
+        type_list = [torch.bool, torch.int8, torch.short, torch.int, torch.long, 
+                     torch.half, torch.float, torch.double]
+
+        # Type permutation
+        for dtype1 in type_list:
+            for dtype2 in type_list:
+                a = self._create_rand_tensor((10, 10), dtype=dtype1, device=device)
+                b = self._create_rand_tensor((10, 10), dtype=dtype2, device=device)
+                self._test_copysign_numpy(a, b)
+
+                a = self._create_rand_tensor((10, 1, 10), dtype=dtype1, device=device)
+                b = self._create_rand_tensor((10, 10), dtype=dtype2, device=device)
+                self._test_copysign_numpy(a, b)
+
+                a = self._create_rand_tensor((10, 10), dtype=dtype1, device=device)
+                b = self._create_rand_tensor((10, 1, 10), dtype=dtype2, device=device)
+                self._test_copysign_numpy(a, b)
+
     @dtypes(torch.bfloat16, torch.float)
     def test_div(self, device, dtype):
         for op, method, inplace in ((torch.div, torch.Tensor.div, torch.Tensor.div_),
