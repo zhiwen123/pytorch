@@ -2,8 +2,6 @@
 
 #include <ATen/ATen.h>
 
-#ifdef USE_VULKAN_API
-
 // TODO: These functions should move to a common place.
 
 namespace {
@@ -30,6 +28,15 @@ bool exactlyEqual(const at::Tensor& a, const at::Tensor& b) {
 
 namespace {
 
+TEST(VulkanAPITest, add) {
+  const auto a_cpu = at::rand({11, 7, 139, 109}, at::device(at::kCPU).dtype(at::kFloat));
+  const auto b_cpu = at::rand({11, 7, 139, 109}, at::device(at::kCPU).dtype(at::kFloat));
+  const auto c_cpu = at::add(a_cpu, b_cpu, 2.1f);
+  const auto c_vulkan = at::add(a_cpu.vulkan(), b_cpu.vulkan(), 2.1f);
+
+  ASSERT_TRUE(almostEqual(c_cpu, c_vulkan.cpu()));
+}
+
 TEST(VulkanAPITest, copy) {
   const auto cpu = at::rand({13, 17, 37, 19}, at::device(at::kCPU).dtype(at::kFloat));
   ASSERT_TRUE(exactlyEqual(cpu, cpu.vulkan().cpu()));
@@ -40,5 +47,3 @@ TEST(VulkanAPITest, empty) {
 }
 
 } // namespace
-
-#endif /* USE_VULKAN_API */
